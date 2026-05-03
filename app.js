@@ -146,7 +146,7 @@
     for (let i = 0; i < M.length; i++) {
       for (let j = 0; j < cols; j++) {
         const c = document.createElement("span");
-        c.className = "cell";
+        c.className = "cell" + (j === cols - 1 ? " cell-rhs" : "");
         c.textContent = formatRat(M[i][j]);
         grid.appendChild(c);
       }
@@ -167,6 +167,7 @@
       { p: "=>", len: 2 },
       { p: "->", len: 2 },
       { p: "→", len: 1 },
+      { p: "←", len: 1 },
       { p: "=", len: 1 },
     ];
     let best = -1;
@@ -254,7 +255,12 @@
     let s = rhs
       .replace(/\s+/g, "")
       .replace(/\*/g, "")
-      .replace(/\u2212/g, "-");
+      .replace(/\u2212/g, "-")    // − → -
+      .replace(/\u00b7/g, "")     // · (middle dot) → remove
+      .replace(/\.(?=[Rr])/g, "") // plain dot before R → remove
+      .replace(/--/g, "+")        // double-negative → positive
+      .replace(/\+-/g, "-")       // +-  → -
+      .replace(/-\+/g, "-");      // -+  → -
     if (!s) return { error: "Right-hand side is empty." };
     /** @type {Rat[]} */
     const coeffs = Array.from({ length: numRows }, () => ratFromInt(0));
@@ -323,7 +329,7 @@
       return {
         ok: false,
         message:
-          "Use a swap (e.g. R1 <-> R2), or an assignment with ->, →, or = (e.g. R1 -> R1 - (2/3)R2).",
+          "Use a swap (e.g. R1 <-> R2), or an assignment with ->, →, ←, or = (e.g. R1 -> R1 - (2/3)R2).",
       };
     }
     const [left, right] = parts;
@@ -388,6 +394,11 @@
       if (!ratIsZero(row[j])) return j;
     }
     return -1;
+  }
+
+  /** Count non-zero rows (= rank) in a matrix already in REF. */
+  function matrixRank(M) {
+    return M.reduce((acc, row) => acc + (leadingIndex(row) !== -1 ? 1 : 0), 0);
   }
 
   /** @param {Rat[][]} M */
@@ -464,7 +475,7 @@
         const tmp = M[i];
         M[i] = M[r];
         M[r] = tmp;
-        steps.push(`Swap row ${i + 1} ↔ row ${r + 1}`);
+        steps.push(`R${i + 1} ↔ R${r + 1}`);
         record();
       }
 
@@ -476,7 +487,7 @@
         for (let k = lead; k < n; k++) {
           M[j][k] = ratSub(M[j][k], ratMul(c, M[r][k]));
         }
-        steps.push(`Row ${j + 1} ← row ${j + 1} − ${formatCoefLabel(c)}·row ${r + 1}`);
+        steps.push(`R${j + 1} ← R${j + 1} − ${formatCoefLabel(c)}·R${r + 1}`);
         record();
       }
       lead++;
@@ -503,7 +514,7 @@
           for (let k = c; k < n; k++) {
             M[r][k] = ratMul(M[r][k], inv);
           }
-          steps.push(`Row ${r + 1} ← ${formatCoefLabel(inv)}·row ${r + 1}`);
+          steps.push(`R${r + 1} ← ${formatCoefLabel(inv)}·R${r + 1}`);
           record();
         }
         for (let rr = 0; rr < r; rr++) {
@@ -512,7 +523,7 @@
           for (let k = c; k < n; k++) {
             M[rr][k] = ratSub(M[rr][k], ratMul(x, M[r][k]));
           }
-          steps.push(`Row ${rr + 1} ← row ${rr + 1} − ${formatCoefLabel(x)}·row ${r + 1}`);
+          steps.push(`R${rr + 1} ← R${rr + 1} − ${formatCoefLabel(x)}·R${r + 1}`);
           record();
         }
       }
@@ -554,6 +565,7 @@
     userSteps: document.getElementById("user-steps"),
     userStepsEmpty: document.getElementById("user-steps-empty"),
     hint: document.getElementById("step-hint"),
+    btnShowRank: document.getElementById("btn-show-rank"),
   };
 
   /** @type {Rat[][] | null} */
@@ -824,12 +836,150 @@
     ctx.fillText("Row1 (blue) · Row2 (gold) · ax + by = c", margin, H - 10);
   }
 
+  // ── 3D plane visualisation (Three.js, 3×4 matrices only) ─────────────────
+  let _three = null; // { renderer, scene, camera, controls, planeGroup, animId }
+
+  const PLANE_COLORS_3D = [0x5b9fd4, 0xc9a45c, 0x5bc478];
+
+  function _stopThreeLoop() {
+    if (_three && _three.animId) {
+      cancelAnimationFrame(_three.animId);
+      _three.animId = null;
+    }
+  }
+
+  function renderPlanePlot3x4() {
+    const wrap = document.getElementById("plane-plot-wrap");
+    const M = currentSnapshot();
+
+    if (!M || M.length !== 3 || !M[0] || M[0].length !== 4) {
+      wrap.hidden = true;
+      _stopThreeLoop();
+      return;
+    }
+    wrap.hidden = false;
+
+    const canvas = document.getElementById("plane-plot-canvas");
+
+    // Build Three.js scene once
+    if (!_three) {
+      if (typeof THREE === "undefined") return; // CDN not loaded yet
+
+      const W = 400, H = 320;
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+      renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+      renderer.setClearColor(0x121820);
+      renderer.setSize(W, H);
+
+      const scene = new THREE.Scene();
+
+      const camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 200);
+      camera.position.set(9, 7, 12);
+      camera.lookAt(0, 0, 0);
+
+      // Coloured axis lines (x=red, y=green, z=blue — dimmed)
+      const axLen = 7;
+      [
+        { v: new THREE.Vector3(axLen, 0, 0), color: 0x7a3030 },
+        { v: new THREE.Vector3(0, axLen, 0), color: 0x307a30 },
+        { v: new THREE.Vector3(0, 0, axLen), color: 0x30307a },
+      ].forEach(({ v, color }) => {
+        const neg = v.clone().negate();
+        const geo = new THREE.BufferGeometry().setFromPoints([neg, v]);
+        scene.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color })));
+      });
+
+      scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+      const dl = new THREE.DirectionalLight(0xffffff, 0.55);
+      dl.position.set(5, 10, 7);
+      scene.add(dl);
+
+      const planeGroup = new THREE.Group();
+      scene.add(planeGroup);
+
+      let controls = null;
+      if (typeof THREE.OrbitControls !== "undefined") {
+        controls = new THREE.OrbitControls(camera, canvas);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+      }
+
+      _three = { renderer, scene, camera, controls, planeGroup, animId: null };
+    }
+
+    const { renderer, scene, camera, controls, planeGroup } = _three;
+
+    // Remove old plane meshes
+    while (planeGroup.children.length) {
+      const m = planeGroup.children[0];
+      if (m.geometry) m.geometry.dispose();
+      if (m.material) m.material.dispose();
+      planeGroup.remove(m);
+    }
+
+    // Add a plane for each row: ax + by + cz = d
+    M.forEach((row, i) => {
+      const a = ratToFloat(row[0]);
+      const b = ratToFloat(row[1]);
+      const c = ratToFloat(row[2]);
+      const d = ratToFloat(row[3]);
+
+      const normalLen2 = a * a + b * b + c * c;
+      if (normalLen2 < 1e-14) return; // zero row – skip
+
+      const normal = new THREE.Vector3(a, b, c).normalize();
+
+      // Closest point on plane to the origin = (d / |n|²) * n_original
+      const clamp = (v) => (isFinite(v) ? Math.max(-18, Math.min(18, v)) : 0);
+      const pt = new THREE.Vector3(
+        clamp((a * d) / normalLen2),
+        clamp((b * d) / normalLen2),
+        clamp((c * d) / normalLen2),
+      );
+
+      const geo = new THREE.PlaneGeometry(14, 14);
+      const mat = new THREE.MeshPhongMaterial({
+        color: PLANE_COLORS_3D[i],
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.38,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+      mesh.position.copy(pt);
+      planeGroup.add(mesh);
+
+      // Wireframe border
+      const edgeGeo = new THREE.EdgesGeometry(geo);
+      const edgeMat = new THREE.LineBasicMaterial({
+        color: PLANE_COLORS_3D[i],
+        transparent: true,
+        opacity: 0.7,
+      });
+      const edges = new THREE.LineSegments(edgeGeo, edgeMat);
+      edges.quaternion.copy(mesh.quaternion);
+      edges.position.copy(pt);
+      planeGroup.add(edges);
+    });
+
+    // (Re)start render loop
+    _stopThreeLoop();
+    function animate() {
+      _three.animId = requestAnimationFrame(animate);
+      if (controls) controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  }
+
   function refreshTimeline() {
     if (!source) return;
     syncTimelineSlider();
     renderTimelineChain();
     renderTimelineHeatmap();
     renderLinePlot2x3();
+    renderPlanePlot3x4();
   }
 
   function setStepIndexFromTimeline(k) {
@@ -841,6 +991,7 @@
       renderTimelineChain();
       renderTimelineHeatmap();
       renderLinePlot2x3();
+      renderPlanePlot3x4();
       return;
     }
     stepIndex = v;
@@ -872,6 +1023,7 @@
     els.btnUndoOp.disabled = !has || undoStack.length === 0;
     els.btnCheckRef.disabled = !has;
     els.btnCheckRref.disabled = !has;
+    els.btnShowRank.disabled = !has;
     els.hint.textContent = has
       ? stepIndex === 0
         ? 'Press Next step to reveal operations one at a time.'
@@ -1065,6 +1217,16 @@
   els.btnResetWork.addEventListener("click", resetUserWork);
   els.btnCheckRef.addEventListener("click", checkRef);
   els.btnCheckRref.addEventListener("click", checkRref);
+  els.btnShowRank.addEventListener("click", () => {
+    if (!fullSnapshots.length) return;
+    clearCheckResult();
+    const refMatrix = fullSnapshots[fullSnapshots.length - 1];
+    const r = matrixRank(refMatrix);
+    const rows = refMatrix.length;
+    const cols = refMatrix[0] ? refMatrix[0].length - 1 : 0;
+    els.checkResult.textContent = `Rank = ${r}  (${cols} unknown${cols !== 1 ? "s" : ""}, ${rows} equation${rows !== 1 ? "s" : ""})`;
+    els.checkResult.classList.add("ok");
+  });
   els.rowOpInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") applyUserOp();
   });
@@ -1090,9 +1252,16 @@
     medium: { rows: 3, cols: 4, range: 9,  rref: false },
     hard:   { rows: 4, cols: 5, range: 15, rref: true  },
     custom: null,
+    manual: null,
   };
 
-  const customFields = document.getElementById("custom-fields");
+  const customFields  = document.getElementById("custom-fields");
+  const manualEntry   = document.getElementById("manual-entry");
+  const manualGrid    = document.getElementById("manual-grid");
+  const manualError   = document.getElementById("manual-error");
+  const manualRowsEl  = document.getElementById("manual-rows");
+  const manualColsEl  = document.getElementById("manual-cols");
+  const btnUseMatrix  = document.getElementById("btn-use-matrix");
 
   function setActiveDiffButton(level) {
     document.querySelectorAll(".btn-diff").forEach((b) => {
@@ -1100,16 +1269,131 @@
     });
   }
 
+  // ── Manual matrix entry ──────────────────────────────────────
+  function buildManualGrid() {
+    const r = Math.max(2, Math.min(8, parseInt(manualRowsEl.value, 10) || 3));
+    const c = Math.max(2, Math.min(8, parseInt(manualColsEl.value, 10) || 4));
+    manualRowsEl.value = String(r);
+    manualColsEl.value = String(c);
+    manualGrid.style.gridTemplateColumns = `repeat(${c}, auto)`;
+    manualGrid.replaceChildren();
+    manualError.textContent = "";
+    for (let i = 0; i < r; i++) {
+      for (let j = 0; j < c; j++) {
+        const inp = document.createElement("input");
+        inp.type = "text";
+        inp.inputMode = "text";
+        inp.autocomplete = "off";
+        inp.spellcheck = false;
+        inp.className = "manual-cell" + (j === c - 1 ? " cell-rhs" : "");
+        inp.dataset.row = String(i);
+        inp.dataset.col = String(j);
+        inp.setAttribute("aria-label", `Row ${i + 1} column ${j + 1}`);
+        inp.placeholder = j === c - 1 ? "rhs" : "0";
+        // Tab order: left-to-right, top-to-bottom (default)
+        inp.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            btnUseMatrix.click();
+          }
+        });
+        manualGrid.appendChild(inp);
+      }
+    }
+    // Focus first cell
+    const first = manualGrid.querySelector(".manual-cell");
+    if (first) first.focus();
+  }
+
+  function parseCellValue(raw) {
+    const t = raw.trim().replace(/\s+/g, "");
+    if (!t || t === "0") return { ok: true, rat: ratFromInt(0) };
+    // Handle optional leading sign then fraction: e.g. -3/4, 5, -7
+    const m = t.match(/^([+-]?\d+)(?:\/([+-]?\d+))?$/);
+    if (!m) return { ok: false };
+    const n = parseInt(m[1], 10);
+    const d = m[2] ? parseInt(m[2], 10) : 1;
+    if (!Number.isFinite(n) || !Number.isFinite(d) || d === 0) return { ok: false };
+    return { ok: true, rat: rat(n, d) };
+  }
+
+  function loadManualMatrix() {
+    manualError.textContent = "";
+    const cells = Array.from(manualGrid.querySelectorAll(".manual-cell"));
+    cells.forEach((c) => c.classList.remove("cell-error"));
+
+    const r = parseInt(manualRowsEl.value, 10) || 3;
+    const c = parseInt(manualColsEl.value, 10) || 4;
+    const M = [];
+    let hasError = false;
+
+    for (let i = 0; i < r; i++) {
+      const row = [];
+      for (let j = 0; j < c; j++) {
+        const cell = manualGrid.querySelector(`[data-row="${i}"][data-col="${j}"]`);
+        const raw = cell ? cell.value : "";
+        const parsed = parseCellValue(raw);
+        if (!parsed.ok) {
+          hasError = true;
+          if (cell) cell.classList.add("cell-error");
+        } else {
+          row.push(parsed.rat);
+        }
+      }
+      M.push(row);
+    }
+
+    if (hasError) {
+      manualError.textContent = "Some cells have invalid values. Use integers or fractions like 3/4.";
+      return;
+    }
+
+    // Apply the matrix to the app exactly like newMatrix()
+    source = M;
+    userWork = cloneMatrix(source);
+    undoStack = [];
+    userStepLabels = [];
+    stepIndex = 0;
+    els.rowOpInput.value = "";
+    els.rowOpError.textContent = "";
+    clearCheckResult();
+    resetRevealSpoilers();
+    recomputeSteps();
+    renderAllMatrices();
+    renderStepList();
+    renderUserSteps();
+    syncStepUi();
+    refreshTimeline();
+  }
+
+  btnUseMatrix.addEventListener("click", loadManualMatrix);
+
+  [manualRowsEl, manualColsEl].forEach((el) => {
+    el.addEventListener("change", buildManualGrid);
+  });
+
+  // ── Difficulty button handler ─────────────────────────────────
   document.querySelectorAll(".btn-diff").forEach((btn) => {
     btn.addEventListener("click", () => {
       const level = btn.dataset.level;
       setActiveDiffButton(level);
+
+      // Show/hide panels
+      customFields.setAttribute("hidden", "");
+      manualEntry.setAttribute("hidden", "");
+      els.btnNew.removeAttribute("hidden");
+
       if (level === "custom") {
         customFields.removeAttribute("hidden");
         return;
       }
+      if (level === "manual") {
+        manualEntry.removeAttribute("hidden");
+        els.btnNew.setAttribute("hidden", "");
+        buildManualGrid();
+        return;
+      }
       const lvl = DIFFICULTY_LEVELS[level];
-      customFields.setAttribute("hidden", "");
       els.rows.value   = String(lvl.rows);
       els.cols.value   = String(lvl.cols);
       els.range.value  = String(lvl.range);
@@ -1118,7 +1402,7 @@
     });
   });
 
-  // Hide custom fields initially (medium is selected by default)
+  // Hide custom/manual fields initially (medium is default)
   customFields.setAttribute("hidden", "");
 
   newMatrix();

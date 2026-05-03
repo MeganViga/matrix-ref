@@ -32,7 +32,13 @@
           <button type="button" class="btn btn-diff btn-diff--active" data-level="medium">Medium</button>
           <button type="button" class="btn btn-diff" data-level="hard">Hard</button>
           <button type="button" class="btn btn-diff" data-level="custom">Custom</button>
+          <button type="button" class="btn btn-diff" data-level="manual">Enter my own</button>
         </div>
+
+        <label class="field-label checkbox-label rref-toggle">
+          <input type="checkbox" id="rref" class="checkbox-input" />
+          <span>Target RREF</span>
+        </label>
 
         <div class="setup-fields" id="custom-fields">
           <label class="field-label">
@@ -47,11 +53,31 @@
             Range (±)
             <input type="number" id="range" min="1" value="9" class="num-input" />
           </label>
-          <label class="field-label checkbox-label">
-            <input type="checkbox" id="rref" class="checkbox-input" />
-            <span>Target RREF</span>
-          </label>
         </div>
+
+        <!-- Manual matrix entry (shown only in "Enter my own" mode) -->
+        <div id="manual-entry" hidden>
+          <div class="manual-size-row">
+            <label class="field-label">
+              Rows
+              <input type="number" id="manual-rows" min="2" max="8" value="3" class="num-input" />
+            </label>
+            <label class="field-label">
+              Columns
+              <input type="number" id="manual-cols" min="2" max="8" value="4" class="num-input" />
+            </label>
+          </div>
+          <p class="syntax-hint" style="margin-bottom:0.5rem">
+            Enter integers or fractions like <code>3/4</code> or <code>-5/2</code>.
+            Last column is the right-hand side (augmented matrix).
+          </p>
+          <div id="manual-grid" class="manual-grid" role="grid" aria-label="Matrix entry grid"></div>
+          <p id="manual-error" class="op-error" aria-live="polite"></p>
+          <button type="button" id="btn-use-matrix" class="btn btn-primary" style="margin-top:0.6rem">
+            ✓ Use this matrix
+          </button>
+        </div>
+
         <button type="button" id="btn-new" class="btn btn-primary btn-generate">
           ⟳ New random matrix
         </button>
@@ -81,9 +107,10 @@
 
         <p class="syntax-hint">
           <code>R2 → R2 − 2R1</code> ·
-          <code>R3 → R3 − (59/31)R1</code> ·
+          <code>R2 ← R2 − (59/31)R1</code> ·
           <code>R1 ↔ R2</code> ·
           <code>R3 = 3R3</code><br />
+          Arrows <code>→</code> <code>←</code> <code>-></code> and <code>=</code> are all accepted.
           Separate multiple operations with <code>;</code> — they apply together and undo together.
         </p>
 
@@ -112,6 +139,9 @@
           </button>
           <button type="button" id="btn-check-rref" class="btn btn-outline" disabled>
             Check RREF
+          </button>
+          <button type="button" id="btn-show-rank" class="btn btn-outline" disabled>
+            Show Rank
           </button>
           <span id="check-result" class="check-result" role="status"></span>
         </div>
@@ -201,6 +231,22 @@
               aria-label="Two lines: ax + by = c for each row"
             ></canvas>
           </div>
+          <div id="plane-plot-wrap" class="lineplot-block" hidden>
+            <h3 class="vis-label">Row picture (3 equations · 3 unknowns)</h3>
+            <p class="vis-sublabel">Drag to rotate · scroll to zoom</p>
+            <canvas
+              id="plane-plot-canvas"
+              class="lineplot-canvas"
+              width="400"
+              height="320"
+              aria-label="Three planes in 3D space"
+            ></canvas>
+            <p class="plane-legend">
+              <span class="leg-dot" style="background:#5b9fd4"></span>R1
+              <span class="leg-dot" style="background:#c9a45c"></span>R2
+              <span class="leg-dot" style="background:#5bc478"></span>R3
+            </p>
+          </div>
         </div>
 
         <!-- Reference steps list -->
@@ -219,6 +265,9 @@
       </footer>
 
     </div>
+    <!-- Three.js for 3D plane visualisation (3×4 matrices) -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="./app.js" defer></script>
   </body>
 </html>

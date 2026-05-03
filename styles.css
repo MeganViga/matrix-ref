@@ -180,6 +180,11 @@ a:hover { color: #79c0ff; }
 
 .setup-fields[hidden] { display: none !important; }
 
+.rref-toggle {
+  align-self: flex-start;
+  padding: 0.2rem 0;
+}
+
 .setup-fields {
   display: flex;
   flex-wrap: wrap;
@@ -307,6 +312,12 @@ a:hover { color: #79c0ff; }
   font-variant-numeric: tabular-nums;
 }
 
+.cell.cell-rhs {
+  border-left: 2px solid var(--muted);
+  padding-left: 0.55rem;
+  margin-left: 0.2rem;
+}
+
 /* ─── Answer details (inside matrix card) ───────────────── */
 .answer-details {
   margin-top: 1rem;
@@ -395,11 +406,57 @@ a:hover { color: #79c0ff; }
   outline-offset: 1px;
 }
 
-.error-msg {
+.error-msg, .op-error {
   min-height: 1.2rem;
   font-size: 0.82rem;
   color: var(--danger);
   margin-bottom: 0.6rem;
+}
+
+/* ─── Manual matrix entry ────────────────────────────────── */
+.manual-size-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  align-items: flex-end;
+  margin-bottom: 0.75rem;
+}
+
+.manual-grid {
+  display: inline-grid;
+  gap: 0.35rem;
+  margin-bottom: 0.3rem;
+}
+
+.manual-cell {
+  width: 4.2rem;
+  padding: 0.4rem 0.45rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.95rem;
+  min-height: 40px;
+  text-align: center;
+  transition: border-color 0.12s;
+}
+
+.manual-cell:focus {
+  outline: 2px solid var(--accent-dim);
+  outline-offset: 1px;
+  border-color: var(--accent-dim);
+}
+
+.manual-cell.cell-error {
+  border-color: var(--danger);
+  background: rgba(220, 60, 60, 0.08);
+}
+
+/* vertical separator before last column (RHS) */
+.manual-cell.cell-rhs {
+  border-left: 2px solid var(--accent-dim);
+  margin-left: 0.2rem;
 }
 
 /* Check row */
@@ -602,15 +659,39 @@ a:hover { color: #79c0ff; }
   cursor: default;
 }
 
-/* Line-plot canvas */
+/* Line-plot / plane-plot canvas */
 .lineplot-canvas {
   display: block;
   width: 100%;
-  max-width: 380px;
+  max-width: 400px;
   height: auto;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: #0d1521;
+}
+
+.vis-sublabel {
+  font-size: 0.68rem;
+  color: var(--muted);
+  margin: -0.3rem 0 0.45rem;
+}
+
+.plane-legend {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
+.leg-dot {
+  display: inline-block;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  margin-right: 0.2rem;
 }
 
 /* Reference steps list inside timeline */
