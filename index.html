@@ -38,7 +38,7 @@
           </label>
           <label class="field-label">
             Range (±)
-            <input type="number" id="range" min="1" max="20" value="9" class="num-input" />
+            <input type="number" id="range" min="1" value="9" class="num-input" />
           </label>
           <label class="field-label checkbox-label">
             <input type="checkbox" id="rref" class="checkbox-input" />
@@ -73,11 +73,11 @@
         <h2 class="card-heading">Your row operations</h2>
 
         <p class="syntax-hint">
-          <strong>Syntax:</strong>
           <code>R2 → R2 − 2R1</code> ·
           <code>R3 → R3 − (59/31)R1</code> ·
           <code>R1 ↔ R2</code> ·
-          <code>R3 = 3R3</code> — rows are 1-based, fractions are exact.
+          <code>R3 = 3R3</code><br />
+          Separate multiple operations with <code>;</code> — they apply together and undo together.
         </p>
 
         <div class="op-row">
@@ -89,7 +89,7 @@
             autocomplete="off"
             autocorrect="off"
             spellcheck="false"
-            placeholder="e.g.  R2 → R2 − 2R1"
+            placeholder="e.g.  R2 → R2 − 2R1 ; R3 → R3 − 3R1"
             aria-label="Row operation"
           />
           <button type="button" id="btn-apply-op" class="btn btn-primary">Apply</button>

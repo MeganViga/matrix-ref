@@ -917,7 +917,7 @@
   function newMatrix() {
     const rows = Math.max(2, Math.min(8, parseInt(els.rows.value, 10) || 3));
     const cols = Math.max(2, Math.min(8, parseInt(els.cols.value, 10) || 4));
-    const rangeAbs = Math.max(1, Math.min(20, parseInt(els.range.value, 10) || 9));
+    const rangeAbs = Math.max(1, parseInt(els.range.value, 10) || 9);
     els.rows.value = String(rows);
     els.cols.value = String(cols);
     els.range.value = String(rangeAbs);
@@ -971,19 +971,33 @@
     els.rowOpError.textContent = "";
     clearCheckResult();
     const raw = els.rowOpInput.value;
-    const parsed = parseRowOperation(raw, userWork.length);
-    if (!parsed.ok) {
-      els.rowOpError.textContent = parsed.message;
+
+    const parts = raw.split(";").map((s) => s.trim()).filter(Boolean);
+    if (!parts.length) return;
+
+    const parsed = parts.map((p) => ({ raw: p, result: parseRowOperation(p, userWork.length) }));
+    const firstError = parsed.find((p) => !p.result.ok);
+    if (firstError) {
+      const idx = parsed.indexOf(firstError) + 1;
+      const prefix = parts.length > 1 ? `Op ${idx}: ` : "";
+      els.rowOpError.textContent = prefix + firstError.result.message;
       return;
     }
+
     undoStack.push(cloneMatrix(userWork));
-    const res = applyOperation(userWork, parsed.op);
-    if (!res.ok) {
-      undoStack.pop();
-      els.rowOpError.textContent = res.message;
-      return;
+    const labels = [];
+    for (const { raw: partRaw, result } of parsed) {
+      const res = applyOperation(userWork, result.op);
+      if (!res.ok) {
+        userWork = undoStack.pop();
+        els.rowOpError.textContent = res.message;
+        return;
+      }
+      labels.push(res.label);
     }
-    userStepLabels.push(`${res.label}  (${raw.trim()})`);
+
+    const stepLabel = labels.join(" ; ");
+    userStepLabels.push(stepLabel);
     renderMatrix(userWork, els.work);
     renderUserSteps();
     syncStepUi();
