@@ -1084,5 +1084,42 @@
     setStepIndexFromTimeline(v);
   });
 
+  // ── Difficulty presets ────────────────────────────────────────
+  const DIFFICULTY_LEVELS = {
+    easy:   { rows: 2, cols: 3, range: 3,  rref: false },
+    medium: { rows: 3, cols: 4, range: 9,  rref: false },
+    hard:   { rows: 4, cols: 5, range: 15, rref: true  },
+    custom: null,
+  };
+
+  const customFields = document.getElementById("custom-fields");
+
+  function setActiveDiffButton(level) {
+    document.querySelectorAll(".btn-diff").forEach((b) => {
+      b.classList.toggle("btn-diff--active", b.dataset.level === level);
+    });
+  }
+
+  document.querySelectorAll(".btn-diff").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const level = btn.dataset.level;
+      setActiveDiffButton(level);
+      if (level === "custom") {
+        customFields.removeAttribute("hidden");
+        return;
+      }
+      const lvl = DIFFICULTY_LEVELS[level];
+      customFields.setAttribute("hidden", "");
+      els.rows.value   = String(lvl.rows);
+      els.cols.value   = String(lvl.cols);
+      els.range.value  = String(lvl.range);
+      els.rref.checked = lvl.rref;
+      newMatrix();
+    });
+  });
+
+  // Hide custom fields initially (medium is selected by default)
+  customFields.setAttribute("hidden", "");
+
   newMatrix();
 })();

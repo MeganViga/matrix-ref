@@ -27,7 +27,14 @@
 
       <!-- ② Setup: matrix dimensions + generate -->
       <section class="card setup-card" aria-label="Matrix setup">
-        <div class="setup-fields">
+        <div class="difficulty-group" role="group" aria-label="Difficulty">
+          <button type="button" class="btn btn-diff" data-level="easy">Easy</button>
+          <button type="button" class="btn btn-diff btn-diff--active" data-level="medium">Medium</button>
+          <button type="button" class="btn btn-diff" data-level="hard">Hard</button>
+          <button type="button" class="btn btn-diff" data-level="custom">Custom</button>
+        </div>
+
+        <div class="setup-fields" id="custom-fields">
           <label class="field-label">
             Rows
             <input type="number" id="rows" min="2" max="8" value="3" class="num-input" />
