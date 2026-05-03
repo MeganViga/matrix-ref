@@ -401,6 +401,56 @@
     return M.reduce((acc, row) => acc + (leadingIndex(row) !== -1 ? 1 : 0), 0);
   }
 
+  /**
+   * Classify the system represented by augmented REF matrix M.
+   * Last column is the RHS (b). Returns type + supporting numbers.
+   * @param {Rat[][]} M  — must already be in REF
+   * @returns {{ type: 'no-solution'|'unique'|'infinite', rankCoeff: number, rankAug: number, numVars: number }}
+   */
+  function classifySolution(M) {
+    if (!M.length || !M[0].length) return { type: "infinite", rankCoeff: 0, rankAug: 0, numVars: 0 };
+    const numVars = M[0].length - 1; // columns excluding the RHS
+    const rankAug = matrixRank(M);
+    const coeffOnly = M.map((row) => row.slice(0, numVars));
+    const rankCoeff = matrixRank(coeffOnly);
+    if (rankCoeff < rankAug) return { type: "no-solution", rankCoeff, rankAug, numVars };
+    if (rankCoeff === numVars) return { type: "unique", rankCoeff, rankAug, numVars };
+    return { type: "infinite", rankCoeff, rankAug, numVars };
+  }
+
+  /**
+   * Build a human-readable verdict + rank-formula explanation.
+   * @param {{ type: string, rankCoeff: number, rankAug: number, numVars: number }} sol
+   * @returns {{ label: string, reason: string, isOk: boolean }}
+   */
+  function solExplain(sol) {
+    const { type, rankCoeff, rankAug, numVars } = sol;
+    const r  = rankCoeff;
+    const ra = rankAug;
+    const n  = numVars;
+    const free = n - r;
+
+    if (type === "no-solution") {
+      return {
+        label:  "No solution (inconsistent system)",
+        reason: `rank(A) = ${r} < rank([A|b]) = ${ra}  →  a row reads  0 = non-zero, so the system is inconsistent.`,
+        isOk:   false,
+      };
+    }
+    if (type === "unique") {
+      return {
+        label:  "Unique solution",
+        reason: `rank(A) = rank([A|b]) = ${r} = n = ${n}  →  every unknown has exactly one pivot, so the solution is unique.`,
+        isOk:   true,
+      };
+    }
+    return {
+      label:  `Infinitely many solutions`,
+      reason: `rank(A) = rank([A|b]) = ${r} < n = ${n}  →  ${free} free variable${free !== 1 ? "s" : ""}, so infinitely many solutions exist.`,
+      isOk:   true,
+    };
+  }
+
   /** @param {Rat[][]} M */
   function isRowEchelon(M) {
     const m = M.length;
@@ -1181,8 +1231,10 @@
     if (!userWork) return;
     clearCheckResult();
     if (isRowEchelon(userWork)) {
-      els.checkResult.textContent = "This matrix is in row echelon form.";
-      els.checkResult.classList.add("ok");
+      const sol = classifySolution(userWork);
+      const { label, reason, isOk } = solExplain(sol);
+      els.checkResult.textContent = `✓ Row echelon form  ·  ${label}  —  ${reason}`;
+      els.checkResult.classList.add(isOk ? "ok" : "bad");
     } else {
       els.checkResult.textContent = "Not in row echelon form yet.";
       els.checkResult.classList.add("bad");
@@ -1193,8 +1245,10 @@
     if (!userWork) return;
     clearCheckResult();
     if (isRREF(userWork)) {
-      els.checkResult.textContent = "This matrix is in reduced row echelon form.";
-      els.checkResult.classList.add("ok");
+      const sol = classifySolution(userWork);
+      const { label, reason, isOk } = solExplain(sol);
+      els.checkResult.textContent = `✓ Reduced row echelon form  ·  ${label}  —  ${reason}`;
+      els.checkResult.classList.add(isOk ? "ok" : "bad");
     } else {
       els.checkResult.textContent = "Not in reduced row echelon form.";
       els.checkResult.classList.add("bad");
@@ -1224,8 +1278,11 @@
     const r = matrixRank(refMatrix);
     const rows = refMatrix.length;
     const cols = refMatrix[0] ? refMatrix[0].length - 1 : 0;
-    els.checkResult.textContent = `Rank = ${r}  (${cols} unknown${cols !== 1 ? "s" : ""}, ${rows} equation${rows !== 1 ? "s" : ""})`;
-    els.checkResult.classList.add("ok");
+    const sol = classifySolution(refMatrix);
+    const { label, reason, isOk } = solExplain(sol);
+    els.checkResult.textContent =
+      `Rank = ${r}  (${cols} unknown${cols !== 1 ? "s" : ""}, ${rows} equation${rows !== 1 ? "s" : ""})  ·  ${label}  —  ${reason}`;
+    els.checkResult.classList.add(isOk ? "ok" : "bad");
   });
   els.rowOpInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") applyUserOp();
