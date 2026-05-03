@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Matrix → Row Echelon Form</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page">
+
+      <!-- ① Header -->
+      <header class="header">
+        <h1>Matrix → Row Echelon Form</h1>
+        <p class="lede">
+          Generate a random matrix, apply your own row operations with exact
+          fractions, then check your result. Hints and a reference solution stay
+          hidden until you ask for them.
+        </p>
+      </header>
+
+      <!-- ② Setup: matrix dimensions + generate -->
+      <section class="card setup-card" aria-label="Matrix setup">
+        <div class="setup-fields">
+          <label class="field-label">
+            Rows
+            <input type="number" id="rows" min="2" max="8" value="3" class="num-input" />
+          </label>
+          <label class="field-label">
+            Columns
+            <input type="number" id="cols" min="2" max="8" value="4" class="num-input" />
+          </label>
+          <label class="field-label">
+            Range (±)
+            <input type="number" id="range" min="1" max="20" value="9" class="num-input" />
+          </label>
+          <label class="field-label checkbox-label">
+            <input type="checkbox" id="rref" class="checkbox-input" />
+            <span>Target RREF</span>
+          </label>
+        </div>
+        <button type="button" id="btn-new" class="btn btn-primary btn-generate">
+          ⟳ New random matrix
+        </button>
+      </section>
+
+      <!-- ③ Matrices: Original | Your work  (Answer revealed separately) -->
+      <section class="card matrix-card" aria-label="Matrices">
+        <div class="matrix-grid">
+          <div class="matrix-block">
+            <h2 class="matrix-label">Original</h2>
+            <div id="original" class="matrix-wrap" aria-live="polite"></div>
+          </div>
+          <div class="matrix-block matrix-block--work">
+            <h2 class="matrix-label">Your work</h2>
+            <div id="work" class="matrix-wrap" aria-live="polite"></div>
+          </div>
+        </div>
+        <details class="answer-details">
+          <summary class="answer-summary">Show answer (REF / RREF)</summary>
+          <div id="final" class="matrix-wrap matrix-wrap--muted" aria-live="polite"></div>
+        </details>
+      </section>
+
+      <!-- ⑤ Practice: row-op input + check + Your steps -->
+      <section class="card practice-card" aria-label="Your row operations">
+        <h2 class="card-heading">Your row operations</h2>
+
+        <p class="syntax-hint">
+          <strong>Syntax:</strong>
+          <code>R2 → R2 − 2R1</code> ·
+          <code>R3 → R3 − (59/31)R1</code> ·
+          <code>R1 ↔ R2</code> ·
+          <code>R3 = 3R3</code> — rows are 1-based, fractions are exact.
+        </p>
+
+        <div class="op-row">
+          <input
+            type="text"
+            id="row-op-input"
+            class="op-input"
+            inputmode="text"
+            autocomplete="off"
+            autocorrect="off"
+            spellcheck="false"
+            placeholder="e.g.  R2 → R2 − 2R1"
+            aria-label="Row operation"
+          />
+          <button type="button" id="btn-apply-op" class="btn btn-primary">Apply</button>
+          <button type="button" id="btn-undo-op" class="btn btn-ghost" disabled>Undo</button>
+          <button type="button" id="btn-reset-work" class="btn btn-ghost" disabled>Reset</button>
+        </div>
+
+        <p id="row-op-error" class="error-msg" role="alert"></p>
+
+        <div class="check-row">
+          <button type="button" id="btn-check-ref" class="btn btn-outline" disabled>
+            Check REF
+          </button>
+          <button type="button" id="btn-check-rref" class="btn btn-outline" disabled>
+            Check RREF
+          </button>
+          <span id="check-result" class="check-result" role="status"></span>
+        </div>
+
+        <!-- Your steps live inline, right below the input -->
+        <div class="your-steps-block">
+          <h3 class="steps-heading">Your steps</h3>
+          <ol id="user-steps" class="steps-list"></ol>
+          <p class="steps-empty" id="user-steps-empty">No steps yet — apply an operation above.</p>
+        </div>
+      </section>
+
+      <!-- ⑥ Reference solution toggle -->
+      <div class="reveal-strip" role="group" aria-label="Reveal reference solution">
+        <span class="reveal-strip__label">Hints</span>
+        <label class="reveal-toggle">
+          <input type="checkbox" id="show-ref-steps" class="checkbox-input" />
+          <span>Show reference solution &amp; timeline</span>
+        </label>
+      </div>
+
+      <!-- ⑦ Reference path (slider + chain + heatmap + steps) — hidden until revealed -->
+      <section
+        id="ref-timeline-panel"
+        class="card timeline-card"
+        hidden
+        aria-label="Reference elimination"
+      >
+        <h2 class="card-heading">Reference path</h2>
+        <p class="card-sub">
+          Use the buttons or drag the slider. Click any node to jump to that step.
+        </p>
+
+        <!-- Step controls (were previously in Matrix options) -->
+        <div class="step-controls">
+          <button type="button" id="btn-step" class="btn btn-primary" disabled>
+            Next step ›
+          </button>
+          <button type="button" id="btn-solve" class="btn btn-outline">
+            Show all
+          </button>
+          <button type="button" id="btn-reset" class="btn btn-ghost" disabled>
+            Reset
+          </button>
+        </div>
+
+        <!-- Slider -->
+        <div class="slider-row">
+          <span class="slider-label">Step <strong id="timeline-label">0 / 0</strong></span>
+          <input
+            type="range"
+            id="timeline-slider"
+            class="step-slider"
+            min="0"
+            max="0"
+            value="0"
+            aria-label="Step slider"
+          />
+        </div>
+
+        <!-- Current op label -->
+        <p id="timeline-op" class="current-op" aria-live="polite"></p>
+
+        <!-- SVG chain -->
+        <div class="chain-scroll">
+          <svg
+            id="timeline-svg"
+            class="chain-svg"
+            role="img"
+            aria-label="Chain of elimination states"
+          ></svg>
+        </div>
+
+        <!-- Heatmap + line plot side by side on wider screens -->
+        <div class="visuals-row">
+          <div class="heatmap-block">
+            <h3 class="vis-label">Matrix at this step</h3>
+            <div id="timeline-heatmap" class="heatmap"></div>
+          </div>
+          <div id="line-plot-wrap" class="lineplot-block" hidden>
+            <h3 class="vis-label">Row picture (2 equations · 2 unknowns)</h3>
+            <canvas
+              id="line-plot-canvas"
+              class="lineplot-canvas"
+              width="400"
+              height="280"
+              aria-label="Two lines: ax + by = c for each row"
+            ></canvas>
+          </div>
+        </div>
+
+        <!-- Reference steps list -->
+        <div class="ref-steps-block">
+          <h3 class="vis-label">Reference solution</h3>
+          <ol id="steps" class="steps-list steps-list--ref"></ol>
+          <p id="step-hint" class="hint-text" aria-live="polite">
+            Press "Next step" to reveal operations one at a time.
+          </p>
+        </div>
+      </section>
+
+      <footer class="footer">
+        Open <code>index.html</code> locally or push to
+        <a href="https://pages.github.com/">GitHub Pages</a>.
+      </footer>
+
+    </div>
+    <script src="./app.js" defer></script>
+  </body>
+</html>
